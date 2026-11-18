@@ -8,6 +8,7 @@
 */
 (() => {
   const CELL = 22.2, OX = 2, OY = 153;
+  const IMG_W = 1047, IMG_H = 1501;   // cỡ ảnh nhân vật mẫu
   const OUTLINE = '#5b1a4e';
 
   // part: { c: màu, r: [[x,y,w,h], ...], flat: true = không viền }
@@ -211,24 +212,40 @@
   };
 
   const doll = document.getElementById('doll');
+  // Mẫu ảnh PNG: ảnh vẽ trên canvas cùng cỡ ảnh nhân vật nên đặt chồng thẳng lên.
+  // `place` (tuỳ chọn): ảnh không cùng cỡ nhân vật -> cắt vùng `crop` của ảnh gốc
+  // rồi đặt vào vùng `to` trên ảnh nhân vật.
+  const imgSvg = (src, place) => {
+    if (!src) return '';
+    const img = (w, h) =>
+      `<image href="${src}" x="0" y="0" width="${w}" height="${h}" style="image-rendering:pixelated"/>`;
+    if (!place) return img(IMG_W, IMG_H);
+    const [tx, ty, tw, th] = place.to;
+    return `<svg x="${tx}" y="${ty}" width="${tw}" height="${th}" viewBox="${place.crop.join(' ')}"
+      preserveAspectRatio="none" overflow="hidden">${img(place.size[0], place.size[1])}</svg>`;
+  };
+  const layerSvg = (it, side) => it.img
+    ? imgSvg(side === 'back' ? it.backImg : it.img, it.place)
+    : (it[side] ? grid(rectsSvg(it[side])) : '');
+
   function renderDoll() {
     let back = '', front = '';
     for (const cat of CATEGORIES) {
       const it = item(cat.id);
-      if (it?.back) back += rectsSvg(it.back);
+      if (it) back += layerSvg(it, 'back');
     }
     for (const id of drawOrder(item('acc'))) {
       const it = item(id);
-      if (it?.front) front += rectsSvg(it.front);
+      if (it) front += layerSvg(it, 'front');
     }
-    doll.innerHTML =
-      grid(back) +
-      `<image href="assets/character.png" x="0" y="0" width="1047" height="1501" style="image-rendering:pixelated"/>` +
-      grid(front);
+    doll.innerHTML = back + imgSvg('assets/character.png') + front;
   }
 
   function previewSvg(it) {
     if (!it) return '<span class="none">✕</span>';
+    if (it.img) {
+      return `<svg viewBox="${it.box.join(' ')}" preserveAspectRatio="xMidYMid meet">${imgSvg(it.backImg, it.place)}${imgSvg(it.img, it.place)}</svg>`;
+    }
     const parts = [...(it.back || []), ...(it.front || [])];
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (const p of parts) for (const [x, y, w, h] of p.r) {
@@ -333,6 +350,34 @@
 
   document.getElementById('btn-start').onclick = () => show(true);
   document.getElementById('btn-home').onclick = () => show(false);
+
+  // ---------- nạp mẫu ảnh từ assets/items/items.js ----------
+  // Ảnh nằm trong assets/items/<loại>/, canvas 1047x1501 như ảnh nhân vật.
+  // Khung xem trước mặc định của từng loại (toạ độ pixel trên ảnh nhân vật).
+  const PREVIEW_BOX = {
+    hair:   [80, 20, 890, 940],
+    top:    [200, 740, 650, 500],
+    bottom: [240, 960, 570, 360],
+    shoes:  [320, 1060, 410, 310],
+    hat:    [150, -40, 750, 520],
+    acc:    [120, 0, 810, 1380],
+  };
+  const userItems = window.ITEM_IMAGES || {};
+  for (const cat of CATEGORIES) {
+    for (const e of userItems[cat.id] || []) {
+      if (!e || !e.file) continue;
+      const dir = `assets/items/${cat.id}/`;
+      cat.items.push({
+        name: e.name || e.file.replace(/\.[^.]+$/, ''),
+        stars: e.stars,
+        under: e.under,
+        img: dir + e.file,
+        backImg: e.back ? dir + e.back : null,
+        place: e.crop && e.to && e.size ? { crop: e.crop, to: e.to, size: e.size } : null,
+        box: e.box || (e.to ? [e.to[0] - 20, e.to[1] - 20, e.to[2] + 40, e.to[3] + 40] : PREVIEW_BOX[cat.id]),
+      });
+    }
+  }
 
   Object.assign(state, load());
   for (const c of CATEGORIES) {
