@@ -223,32 +223,37 @@
   const stars = (it, i) => it.stars ?? Math.min(5, 1 + ((i * 3) % 5));
 
   function buildWardrobe() {
-    catbar.innerHTML =
-      CATEGORIES.map(cat => `
+    catbar.innerHTML = CATEGORIES.map(cat => `
         <button class="px-btn cat-btn" data-tab="${cat.id}" title="${cat.label}">
           <span class="ico">${previewSvg(cat.items.find(Boolean))}</span>
           <span class="lbl">${SHORT[cat.id] || cat.label}</span>
-        </button>`).join('') +
-      `<button class="px-btn cat-btn" id="btn-random" title="Ngẫu nhiên">
+        </button>`).join('');
+
+    const actions = document.getElementById('stage-actions');
+    actions.innerHTML = `
+        <button class="px-btn cat-btn" id="btn-random" title="Ngẫu nhiên">
           <span class="ico">${ICON_RANDOM}</span><span class="lbl">Ngẫu<br>nhiên</span>
         </button>
         <button class="px-btn cat-btn" id="btn-reset" title="Xóa đồ">
           <span class="ico">${ICON_RESET}</span><span class="lbl">Xóa</span>
         </button>`;
+    actions.addEventListener('click', (e) => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      for (const c of CATEGORIES)
+        state[c.id] = btn.id === 'btn-random' ? Math.floor(Math.random() * c.items.length) : 0;
+      update();
+    });
 
     wardrobe.innerHTML = `
       <div class="cat-title"></div>
       <div class="items" role="listbox"></div>`;
 
     catbar.addEventListener('click', (e) => {
-      const btn = e.target.closest('button');
+      const btn = e.target.closest('[data-tab]');
       if (!btn) return;
-      if (btn.dataset.tab) { activeCat = btn.dataset.tab; renderWardrobe(true); return; }
-      if (btn.id === 'btn-random')
-        for (const c of CATEGORIES) state[c.id] = Math.floor(Math.random() * c.items.length);
-      if (btn.id === 'btn-reset')
-        for (const c of CATEGORIES) state[c.id] = 0;
-      update();
+      activeCat = btn.dataset.tab;
+      renderWardrobe(true);
     });
     wardrobe.querySelector('.items').addEventListener('click', (e) => {
       const card = e.target.closest('[data-i]');

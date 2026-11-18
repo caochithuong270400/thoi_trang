@@ -104,7 +104,15 @@
    [ sân khấu nhân vật | cột nút loại đồ | danh sách mẫu (1 cột, cuộn) ] */
 .game-view {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto clamp(96px, 28%, 190px);
+  grid-template-columns: minmax(0, 1fr) clamp(96px, 28%, 190px);
+}
+
+/* Ngẫu nhiên / Xóa nổi ở góc dưới trái sân khấu */
+.stage-actions {
+  position: absolute;
+  left: clamp(6px, 1.5vmin, 12px); bottom: clamp(6px, 1.5vmin, 12px);
+  display: flex; flex-direction: column; gap: clamp(4px, 1vmin, 8px);
+  z-index: 1;
 }
 
 .stage-col {
@@ -126,15 +134,18 @@
 }
 
 /* ----- cột nút dọc (như "Tìm / Bộ / Nền / Xóa" trong mẫu) ----- */
-/* thiếu chỗ (màn ngang thấp) thì tự xuống thành 2 cột */
+/* Biểu tượng loại đồ: cột dọc nổi ở góc dưới phải sân khấu.
+   Không đủ cao thì tự thêm cột sang trái. */
 .catbar {
-  display: flex; flex-direction: column; flex-wrap: wrap;
+  position: absolute;
+  right: clamp(6px, 1.5vmin, 12px); bottom: clamp(6px, 1.5vmin, 12px);
+  max-height: calc(100% - 2 * clamp(6px, 1.5vmin, 12px));
+  display: flex; flex-direction: column; flex-wrap: wrap-reverse;
   align-content: flex-start;
-  gap: clamp(4px, 1vh, 8px);
-  padding: clamp(6px, 1.2vh, 10px) clamp(4px, 1vmin, 8px);
-  min-height: 0;
+  justify-content: flex-end;
+  gap: clamp(4px, 1vmin, 8px);
+  z-index: 1;
 }
-.catbar #btn-random { margin-top: auto; }
 .cat-btn {
   width: clamp(32px, 5.5dvh, 46px);
   padding: 4px 2px 3px;
@@ -231,8 +242,8 @@
 /* ===== Điện thoại dọc ===== */
 @media (orientation: portrait) and (max-width: 700px) {
   :root { --px: 2px; }
-  .game-view { grid-template-columns: minmax(0, 1fr) auto 30%; }
-  #doll { left: 2%; top: 12%; width: 96%; height: 84%; }
+  .game-view { grid-template-columns: minmax(0, 1fr) 30%; }
+  #doll { left: 2%; top: 12%; width: 78%; height: 84%; } /* chừa chỗ cột biểu tượng bên phải */
   .px-btn.round { width: 36px; height: 36px; }
   .cat-btn { width: 34px; font-size: 10px; }
   .card { padding: 4px 4px 6px; }
