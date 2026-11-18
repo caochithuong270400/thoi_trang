@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Thời Trang</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: #000;
+    font-family: system-ui, sans-serif;
+    overflow: hidden;
+  }
+
+  /*
+    --u = kích thước 1 pixel của ảnh gốc (720x596) trên màn hình.
+    Tự nhỏ lại trên điện thoại, lớn lên trên màn hình to.
+  */
+  .laptop {
+    --u: clamp(0.3px, calc(min(100vw, 100dvh) / 900), 1.3px);
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100dvh;
+  }
+
+  /* ===== Màn hình (nội dung web) ===== */
+  .screen {
+    position: absolute;
+    top:    calc(52  * var(--u));
+    left:   calc(55  * var(--u));
+    right:  calc(74  * var(--u));
+    bottom: calc(100 * var(--u));
+    background: #fff;
+    overflow: auto;
+    z-index: 1;
+  }
+
+  /* ===== Khung ghép từ các mảnh (9-slice mở rộng) ===== */
+  .frame {
+    position: absolute; inset: 0;
+    display: grid;
+    grid-template-rows: calc(60 * var(--u)) minmax(0, 1fr) calc(126 * var(--u));
+    pointer-events: none;   /* click xuyên qua khung */
+    user-select: none;
+    z-index: 2;
+  }
+  .row { display: flex; min-height: 0; height: 100%; overflow: hidden; }
+  .row img { display: block; height: 100%; }
+  .row img.fixed   { flex: none; }                  /* giữ nguyên tỉ lệ (sticker, logo, góc) */
+  .row img.stretch { flex: 1 1 0; min-width: 0; }   /* phần xám trơn, kéo giãn */
+  .row.mid { justify-content: space-between; }
+  .row.mid img { height: 100%; }
+
+  /* chiều rộng mảnh cố định = chiều rộng gốc * --u */
+  .w55  { width: calc(55  * var(--u)); }
+  .w60  { width: calc(60  * var(--u)); }
+  .w74  { width: calc(74  * var(--u)); }
+  .w80  { width: calc(80  * var(--u)); }
+  .w115 { width: calc(115 * var(--u)); }
+  .w165 { width: calc(165 * var(--u)); }
+  .w210 { width: calc(210 * var(--u)); }
+  /* chia phần giãn theo tỉ lệ gốc để notch/logo vẫn gần giữa */
+  .g255 { flex-grow: 255 !important; }
+  .g115 { flex-grow: 115 !important; }
+  .g135 { flex-grow: 135 !important; }
+  .g140 { flex-grow: 140 !important; }
+
+  /* ===== Nội dung mẫu — thay bằng nội dung game ===== */
+  .screen-content {
+    min-height: 100%;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 1em;
+    padding: 1em;
+    background: linear-gradient(160deg, #ffe4f1, #e3f0ff);
+    color: #333;
+    font-size: clamp(14px, 2.4vmin, 22px);
+    text-align: center;
+  }
+  .screen-content h1 { font-size: 2.2em; color: #e0559b; }
+  .screen-content button {
+    font: inherit; padding: .5em 1.4em; border: 0; border-radius: 999px;
+    background: #e0559b; color: #fff; cursor: pointer;
+  }
+</style>
+</head>
+<body>
+  <div class="laptop">
+    <main class="screen">
+      <div class="screen-content">
+        <h1>Thời Trang</h1>
+        <p>Nội dung web hiển thị bên trong màn hình laptop.</p>
+        <button>Bắt đầu</button>
+      </div>
+    </main>
+
+    <div class="frame" aria-hidden="true">
+      <div class="row top">
+        <img class="fixed w60"     src="frame/t1.png" alt="">
+        <img class="stretch g255"  src="frame/t2.png" alt="">
+        <img class="fixed w210"    src="frame/t3.png" alt="">
+        <img class="stretch g115"  src="frame/t4.png" alt="">
+        <img class="fixed w80"     src="frame/t5.png" alt="">
+      </div>
+      <div class="row mid">
+        <img class="w55" src="frame/ml.png" alt="">
+        <img class="w74" src="frame/mr.png" alt="">
+      </div>
+      <div class="row bottom">
+        <img class="fixed w165"    src="frame/b1.png" alt="">
+        <img class="stretch g135"  src="frame/b2.png" alt="">
+        <img class="fixed w115"    src="frame/b3.png" alt="">
+        <img class="stretch g140"  src="frame/b4.png" alt="">
+        <img class="fixed w165"    src="frame/b5.png" alt="">
+      </div>
+    </div>
+  </div>
+</body>
+</html>
