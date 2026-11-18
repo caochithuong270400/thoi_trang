@@ -91,6 +91,27 @@
         { c: '#f48fb1', flat: true, r: [[16,45,6,1],[26,45,6,1]] },
         { c: '#5c4450', flat: true, r: [[17,47,1,4],[27,47,1,4]] } ] },
     ]},
+    { id: 'hat', label: 'Mũ', items: [
+      null,
+      { name: 'Mũ len', front: [
+        { c: '#f48fb1', r: [[10,-4,28,3],[8,-1,32,4]] },
+        { c: '#ffffff', r: [[21,-7,6,3]] },
+        { c: '#d81b60', flat: true, r: [[8,2,32,1],[11,-1,1,3],[16,-1,1,3],[21,-1,1,3],[26,-1,1,3],[31,-1,1,3],[36,-1,1,3]] } ] },
+      { name: 'Mũ lưỡi trai', front: [
+        { c: '#5c7cfa', r: [[11,-4,26,3],[9,-1,30,3],[30,1,14,2]] },
+        { c: '#91a7ff', flat: true, r: [[14,-3,6,1],[23,-5,2,1]] },
+        { c: '#3b5bdb', flat: true, r: [[9,1,21,1]] } ] },
+      { name: 'Mũ nồi', front: [
+        { c: '#c62828', r: [[11,-3,28,2],[8,-1,33,3],[23,-5,2,2]] },
+        { c: '#ef5350', flat: true, r: [[13,-2,8,1]] } ] },
+      { name: 'Vương miện', front: [
+        { c: '#ffd54f', r: [[16,-4,16,3],[16,-6,2,2],[23,-7,2,3],[30,-6,2,2]] },
+        { c: '#e91e63', flat: true, r: [[23,-3,2,1]] },
+        { c: '#4dd0e1', flat: true, r: [[18,-3,1,1],[29,-3,1,1]] } ] },
+      { name: 'Tai mèo', front: [
+        { c: '#f8bbd0', r: [[9,-4,6,5],[33,-4,6,5],[10,-6,4,2],[34,-6,4,2]] },
+        { c: '#ec6f9c', flat: true, r: [[11,-4,2,4],[35,-4,2,4]] } ] },
+    ]},
     { id: 'acc', label: 'Phụ kiện', items: [
       null,
       { name: 'Nơ đỏ', front: [
@@ -101,21 +122,23 @@
           [12,16,10,1],[12,22,10,1],[11,17,1,5],[22,17,1,5],
           [26,16,10,1],[26,22,10,1],[25,17,1,5],[36,17,1,5],[23,18,2,1]] },
         { c: '#ffffff', flat: true, r: [[13,17,2,1],[27,17,2,1]] } ] },
-      { name: 'Vương miện', front: [
-        { c: '#ffd54f', r: [[16,-4,16,3],[16,-6,2,2],[23,-7,2,3],[30,-6,2,2]] },
-        { c: '#e91e63', flat: true, r: [[23,-3,2,1]] },
-        { c: '#4dd0e1', flat: true, r: [[18,-3,1,1],[29,-3,1,1]] } ] },
-      { name: 'Tai mèo', front: [
-        { c: '#f8bbd0', r: [[9,-4,6,5],[33,-4,6,5],[10,-6,4,2],[34,-6,4,2]] },
-        { c: '#ec6f9c', flat: true, r: [[11,-4,2,4],[35,-4,2,4]] } ] },
-      { name: 'Khăn quàng', front: [
+      { name: 'Khăn quàng', under: true, front: [
         { c: '#ef9a9a', r: [[17,30,14,3],[26,33,3,5]] },
         { c: '#e57373', flat: true, r: [[19,31,1,1],[23,31,1,1],[27,31,1,1],[26,36,3,1]] } ] },
+      { name: 'Vòng cổ', under: true, front: [
+        { c: '#ffd54f', flat: true, r: [[19,31,10,1],[20,32,1,1],[27,32,1,1],[21,33,6,1]] },
+        { c: '#e91e63', r: [[23,34,2,2]] } ] },
+      { name: 'Túi xách', front: [
+        { c: '#8d6e63', flat: true, r: [[11,33,1,5],[16,33,1,5],[12,32,4,1]] },
+        { c: '#ff8a65', r: [[9,38,10,6]] },
+        { c: '#ffccbc', flat: true, r: [[13,40,2,1]] } ] },
     ]},
   ];
 
-  // Thứ tự lớp vẽ (từ dưới lên)
-  const DRAW_ORDER = ['shoes', 'bottom', 'top', 'acc_neck', 'hair', 'acc'];
+  // Thứ tự lớp vẽ (từ dưới lên). Phụ kiện có `under: true` nằm dưới tóc.
+  const drawOrder = (acc) => acc?.under
+    ? ['shoes', 'bottom', 'top', 'acc', 'hair', 'hat']
+    : ['shoes', 'bottom', 'top', 'hair', 'hat', 'acc'];
 
   // ---------- render ----------
   const rectsSvg = (parts) => {
@@ -151,12 +174,7 @@
       const it = item(cat.id);
       if (it?.back) back += rectsSvg(it.back);
     }
-    // khăn quàng nằm dưới tóc, các phụ kiện khác nằm trên tóc
-    const acc = item('acc');
-    const accIsNeck = acc?.name === 'Khăn quàng';
-    for (const id of DRAW_ORDER) {
-      if (id === 'acc_neck') { if (accIsNeck) front += rectsSvg(acc.front); continue; }
-      if (id === 'acc' && accIsNeck) continue;
+    for (const id of drawOrder(item('acc'))) {
       const it = item(id);
       if (it?.front) front += rectsSvg(it.front);
     }
@@ -167,7 +185,7 @@
   }
 
   function previewSvg(it) {
-    if (!it) return '<span class="none">trống</span>';
+    if (!it) return '<span class="none">✕</span>';
     const parts = [...(it.back || []), ...(it.front || [])];
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (const p of parts) for (const [x, y, w, h] of p.r) {
@@ -179,37 +197,83 @@
     return `<svg viewBox="${vb}" preserveAspectRatio="xMidYMid meet">${rectsSvg(it.back || [])}${rectsSvg(it.front || [])}</svg>`;
   }
 
-  // ---------- tủ đồ ----------
+  // ---------- cột nút loại đồ + danh sách mẫu ----------
+  const catbar = document.getElementById('catbar');
   const wardrobe = document.getElementById('wardrobe');
+  let activeCat = CATEGORIES[0].id;
+
+  const SHORT = { hair: 'Tóc', top: 'Áo', bottom: 'Váy', shoes: 'Giày', hat: 'Mũ', acc: 'P.kiện' };
+
+  // icon pixel 8x8 cho nút hành động
+  const ICON_RANDOM = `<svg viewBox="0 0 8 8"><rect x="0" y="0" width="8" height="8" fill="${OUTLINE}"/>
+    <rect x="1" y="1" width="6" height="6" fill="#fff"/>
+    <rect x="2" y="2" width="1" height="1" fill="${OUTLINE}"/><rect x="5" y="2" width="1" height="1" fill="${OUTLINE}"/>
+    <rect x="3.5" y="3.5" width="1" height="1" fill="${OUTLINE}"/>
+    <rect x="2" y="5" width="1" height="1" fill="${OUTLINE}"/><rect x="5" y="5" width="1" height="1" fill="${OUTLINE}"/></svg>`;
+  const ICON_RESET = `<svg viewBox="0 0 8 8" fill="${OUTLINE}">
+    <rect x="1" y="1" width="2" height="1"/><rect x="5" y="1" width="2" height="1"/>
+    <rect x="2" y="2" width="2" height="1"/><rect x="4" y="2" width="2" height="1"/>
+    <rect x="3" y="3" width="2" height="2"/>
+    <rect x="2" y="5" width="2" height="1"/><rect x="4" y="5" width="2" height="1"/>
+    <rect x="1" y="6" width="2" height="1"/><rect x="5" y="6" width="2" height="1"/></svg>`;
+
+  // tim độ hiếm (pixel 7x6)
+  const HEART = (on) => `<svg viewBox="0 0 7 6"><path fill="${on ? '#e9447f' : '#f6d3e2'}"
+    d="M1 0h2v1h1v-1h2v1h1v2h-1v1h-1v1h-1v1h-1v-1h-1v-1h-1v-1h-1v-2h1z"/></svg>`;
+  const stars = (it, i) => it.stars ?? Math.min(5, 1 + ((i * 3) % 5));
+
   function buildWardrobe() {
-    wardrobe.innerHTML = CATEGORIES.map(cat => `
-      <div class="slot" data-cat="${cat.id}">
-        <div class="slot-label"><span>${cat.label}</span><small class="count"></small></div>
-        <div class="slot-body">
-          <button class="px-btn arrow" data-step="-1" aria-label="${cat.label} trước">◀</button>
-          <div class="slot-preview" data-step="1" title=""></div>
-          <button class="px-btn arrow" data-step="1" aria-label="${cat.label} sau">▶</button>
-        </div>
-      </div>`).join('');
-    wardrobe.addEventListener('click', (e) => {
-      const el = e.target.closest('[data-step]');
-      if (!el) return;
-      const id = el.closest('.slot').dataset.cat;
-      const n = CATEGORIES.find(c => c.id === id).items.length;
-      state[id] = ((state[id] || 0) + Number(el.dataset.step) + n) % n;
+    catbar.innerHTML =
+      CATEGORIES.map(cat => `
+        <button class="px-btn cat-btn" data-tab="${cat.id}" title="${cat.label}">
+          <span class="ico">${previewSvg(cat.items.find(Boolean))}</span>
+          <span class="lbl">${SHORT[cat.id] || cat.label}</span>
+        </button>`).join('') +
+      `<button class="px-btn cat-btn" id="btn-random" title="Ngẫu nhiên">
+          <span class="ico">${ICON_RANDOM}</span><span class="lbl">Ngẫu<br>nhiên</span>
+        </button>
+        <button class="px-btn cat-btn" id="btn-reset" title="Xóa đồ">
+          <span class="ico">${ICON_RESET}</span><span class="lbl">Xóa</span>
+        </button>`;
+
+    wardrobe.innerHTML = `
+      <div class="cat-title"></div>
+      <div class="items" role="listbox"></div>`;
+
+    catbar.addEventListener('click', (e) => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      if (btn.dataset.tab) { activeCat = btn.dataset.tab; renderWardrobe(true); return; }
+      if (btn.id === 'btn-random')
+        for (const c of CATEGORIES) state[c.id] = Math.floor(Math.random() * c.items.length);
+      if (btn.id === 'btn-reset')
+        for (const c of CATEGORIES) state[c.id] = 0;
+      update();
+    });
+    wardrobe.querySelector('.items').addEventListener('click', (e) => {
+      const card = e.target.closest('[data-i]');
+      if (!card) return;
+      state[activeCat] = Number(card.dataset.i);
       update();
     });
   }
-  function renderWardrobe() {
-    for (const cat of CATEGORIES) {
-      const slot = wardrobe.querySelector(`[data-cat="${cat.id}"]`);
-      const i = state[cat.id] || 0;
-      const it = cat.items[i];
-      slot.querySelector('.count').textContent = `${i}/${cat.items.length - 1}`;
-      const pv = slot.querySelector('.slot-preview');
-      pv.innerHTML = previewSvg(it);
-      pv.title = it ? it.name : 'Không mặc';
-    }
+
+  function renderWardrobe(resetScroll) {
+    const cat = CATEGORIES.find(c => c.id === activeCat);
+    catbar.querySelectorAll('[data-tab]').forEach(t =>
+      t.classList.toggle('active', t.dataset.tab === activeCat));
+    wardrobe.querySelector('.cat-title').textContent = cat.label;
+
+    const list = wardrobe.querySelector('.items');
+    const sel = state[cat.id] || 0;
+    list.innerHTML = cat.items.map((it, i) => `
+      <button class="card${i === sel ? ' selected' : ''}${it ? '' : ' none-card'}" data-i="${i}" role="option" aria-selected="${i === sel}">
+        ${it ? `<span class="card-no">${i}</span>` : ''}
+        <span class="card-thumb">${previewSvg(it)}</span>
+        ${it ? `<span class="hearts">${[1,2,3,4,5].map(k => HEART(k <= stars(it, i))).join('')}</span>` : ''}
+        <span class="card-name">${it ? it.name : 'Không mặc'}</span>
+      </button>`).join('');
+    if (resetScroll) list.scrollTop = 0;
   }
 
   function update() { renderDoll(); renderWardrobe(); save(); }
@@ -221,14 +285,6 @@
 
   document.getElementById('btn-start').onclick = () => show(true);
   document.getElementById('btn-home').onclick = () => show(false);
-  document.getElementById('btn-reset').onclick = () => {
-    for (const c of CATEGORIES) state[c.id] = 0;
-    update();
-  };
-  document.getElementById('btn-random').onclick = () => {
-    for (const c of CATEGORIES) state[c.id] = Math.floor(Math.random() * c.items.length);
-    update();
-  };
 
   Object.assign(state, load());
   for (const c of CATEGORIES) {
