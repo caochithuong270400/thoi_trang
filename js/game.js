@@ -14,6 +14,48 @@
   // item: { name, back: [parts] (vẽ sau lưng nhân vật), front: [parts] }
   const torso = [[17,32,14,1],[16,33,16,2],[15,35,18,3],[16,38,16,4]];
 
+  // Vẽ đồ bằng bản đồ pixel: mỗi ký tự = 1 ô, '.' = trong suốt.
+  // (x0, y0) = toạ độ ô của ký tự đầu tiên.
+  const fromMap = (x0, y0, rows, pal) => {
+    const byColor = {};
+    rows.forEach((row, dy) => {
+      let run = null;
+      [...row, '.'].forEach((ch, dx) => {
+        if (run && ch !== run.ch) {
+          (byColor[run.ch] ||= []).push([x0 + run.x, y0 + dy, dx - run.x, 1]);
+          run = null;
+        }
+        if (!run && ch !== '.') run = { ch, x: dx };
+      });
+    });
+    return Object.entries(byColor).map(([ch, r]) => ({ c: pal[ch], flat: true, r }));
+  };
+
+  // Đầm công chúa — vẽ bám theo đúng viền thân nhân vật (cột 12..34, hàng 31..47)
+  const DRESS = fromMap(12, 31, [
+  //  cột: 12 ......... 34
+    '.......OO.....OO.......', // 31  dây vai
+    '......CAAO...OAAB......', // 32
+    '...OOOCAAAOOOAAABOOO...', // 33  cổ tim + đỉnh tay phồng
+    '..OCCOCAAAAAAAAABOBBO..', // 34
+    '..OCAOCAAAAAAAAABOABO..', // 35
+    '..OBBBOOCAAAAABOOBBBO..', // 36
+    '...OOO.OCAAAAABO.OOO...', // 37  bó eo theo đường tay
+    '......OCAAAAAAABO......', // 38
+    '......ORRRRYRRRRO......', // 39  đai nơ
+    '.....OCAAARARAAABO.....', // 40
+    '...OCAABAAABAAABAABO...', // 41  chân váy xòe, xếp ly
+    '..OCAABAAAABAAAABAABO..', // 42
+    '.OCAAABAAAABAAAABAAABO.', // 43
+    '.OCAAABAAAABAAAABAAABO.', // 44
+    'OCAAAABAAAABAAAABAAAABO', // 45
+    'OWWCWWCWWCWWCWWCWWCWWWO', // 46  ren trắng
+    '.OOOOOOOOOOOOOOOOOOOOO.', // 47
+  ], {
+    O: OUTLINE, A: '#f7a1c4', B: '#e0779f', C: '#ffd0e3',
+    W: '#ffffff', R: '#c2185b', Y: '#ffd54f',
+  });
+
   const CATEGORIES = [
     { id: 'hair', label: 'Tóc', items: [
       null,
@@ -37,6 +79,7 @@
     ]},
     { id: 'top', label: 'Áo', items: [
       null,
+      { name: 'Đầm công chúa', stars: 5, front: DRESS },
       { name: 'Áo thun hồng', front: [
         { c: '#ff8fb8', r: torso },
         { c: '#ffc2d9', flat: true, r: [[17,33,3,1],[16,35,2,2]] },
