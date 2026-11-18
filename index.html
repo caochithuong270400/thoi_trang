@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Thời Trang</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap&subset=vietnamese" rel="stylesheet">
+<link rel="stylesheet" href="css/game.css">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100%; }
@@ -67,33 +70,38 @@
   .g135 { flex-grow: 135 !important; }
   .g140 { flex-grow: 140 !important; }
 
-  /* ===== Nội dung mẫu — thay bằng nội dung game ===== */
-  .screen-content {
-    min-height: 100%;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    gap: 1em;
-    padding: 1em;
-    background: linear-gradient(160deg, #ffe4f1, #e3f0ff);
-    color: #333;
-    font-size: clamp(14px, 2.4vmin, 22px);
-    text-align: center;
-  }
-  .screen-content h1 { font-size: 2.2em; color: #e0559b; }
-  .screen-content button {
-    font: inherit; padding: .5em 1.4em; border: 0; border-radius: 999px;
-    background: #e0559b; color: #fff; cursor: pointer;
-  }
 </style>
 </head>
 <body>
   <div class="laptop">
     <main class="screen">
-      <div class="screen-content">
-        <h1>Thời Trang</h1>
-        <p>Nội dung web hiển thị bên trong màn hình laptop.</p>
-        <button>Bắt đầu</button>
-      </div>
+      <!-- Màn hình tiêu đề -->
+      <section id="title-screen" class="view title-view">
+        <h1 class="logo">Thời Trang</h1>
+        <button class="px-btn big" id="btn-start">BẮT ĐẦU</button>
+      </section>
+
+      <!-- Màn hình game -->
+      <section id="game-screen" class="view game-view" hidden>
+        <div class="stage-col">
+          <button class="px-btn round" id="btn-home" aria-label="Về màn hình chính">
+            <svg viewBox="0 0 9 9" shape-rendering="crispEdges" fill="currentColor">
+              <rect x="4" y="1" width="1" height="1"/><rect x="3" y="2" width="3" height="1"/>
+              <rect x="2" y="3" width="5" height="1"/><rect x="1" y="4" width="7" height="1"/>
+              <rect x="2" y="5" width="2" height="3"/><rect x="5" y="5" width="2" height="3"/>
+              <rect x="4" y="5" width="1" height="1"/>
+            </svg>
+          </button>
+          <div class="stage">
+            <svg id="doll" viewBox="120 0 810 1380" preserveAspectRatio="xMidYMid meet"></svg>
+          </div>
+          <div class="stage-actions">
+            <button class="px-btn" id="btn-random">NGẪU NHIÊN</button>
+            <button class="px-btn" id="btn-reset">XÓA ĐỒ</button>
+          </div>
+        </div>
+        <aside class="wardrobe" id="wardrobe"></aside>
+      </section>
     </main>
 
     <div class="frame" aria-hidden="true">
@@ -117,5 +125,6 @@
       </div>
     </div>
   </div>
+  <script src="js/game.js"></script>
 </body>
 </html>
