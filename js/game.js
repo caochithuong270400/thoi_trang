@@ -199,12 +199,6 @@
     `<g transform="translate(${OX} ${OY}) scale(${CELL})">${inner}</g>`;
 
   const state = {};
-  const load = () => {
-    try { return JSON.parse(localStorage.getItem('thoitrang.outfit') || '{}'); } catch { return {}; }
-  };
-  const save = () => {
-    try { localStorage.setItem('thoitrang.outfit', JSON.stringify(state)); } catch {}
-  };
 
   const item = (catId) => {
     const cat = CATEGORIES.find(c => c.id === catId);
@@ -282,6 +276,9 @@
     d="M1 0h2v1h1v-1h2v1h1v2h-1v1h-1v1h-1v1h-1v-1h-1v-1h-1v-1h-1v-2h1z"/></svg>`;
   const stars = (it, i) => it.stars ?? Math.min(5, 1 + ((i * 3) % 5));
 
+  const actions = document.getElementById('stage-actions');
+
+  // Dựng lại nút + danh sách (gọi lại được khi có ảnh mới)
   function buildWardrobe() {
     catbar.innerHTML = CATEGORIES.map(cat => `
         <button class="px-btn cat-btn" data-tab="${cat.id}" title="${cat.label}">
@@ -289,7 +286,6 @@
           <span class="lbl">${SHORT[cat.id] || cat.label}</span>
         </button>`).join('');
 
-    const actions = document.getElementById('stage-actions');
     actions.innerHTML = `
         <button class="px-btn cat-btn" id="btn-random" title="Ngẫu nhiên">
           <span class="ico">${ICON_RANDOM}</span><span class="lbl">Ngẫu<br>nhiên</span>
@@ -297,31 +293,32 @@
         <button class="px-btn cat-btn" id="btn-reset" title="Xóa đồ">
           <span class="ico">${ICON_RESET}</span><span class="lbl">Xóa</span>
         </button>`;
-    actions.addEventListener('click', (e) => {
-      const btn = e.target.closest('button');
-      if (!btn) return;
-      for (const c of CATEGORIES)
-        state[c.id] = btn.id === 'btn-random' ? Math.floor(Math.random() * c.items.length) : 0;
-      update();
-    });
 
     wardrobe.innerHTML = `
       <div class="cat-title"></div>
       <div class="items" role="listbox"></div>`;
-
-    catbar.addEventListener('click', (e) => {
-      const btn = e.target.closest('[data-tab]');
-      if (!btn) return;
-      activeCat = btn.dataset.tab;
-      renderWardrobe(true);
-    });
-    wardrobe.querySelector('.items').addEventListener('click', (e) => {
-      const card = e.target.closest('[data-i]');
-      if (!card) return;
-      state[activeCat] = Number(card.dataset.i);
-      update();
-    });
   }
+
+  // Sự kiện gắn 1 lần (uỷ quyền), không bị trùng khi dựng lại
+  actions.addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    for (const c of CATEGORIES)
+      state[c.id] = btn.id === 'btn-random' ? Math.floor(Math.random() * c.items.length) : 0;
+    update();
+  });
+  catbar.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-tab]');
+    if (!btn) return;
+    activeCat = btn.dataset.tab;
+    renderWardrobe(true);
+  });
+  wardrobe.addEventListener('click', (e) => {
+    const card = e.target.closest('[data-i]');
+    if (!card) return;
+    state[activeCat] = Number(card.dataset.i);
+    update();
+  });
 
   function renderWardrobe(resetScroll) {
     const cat = CATEGORIES.find(c => c.id === activeCat);
@@ -341,7 +338,7 @@
     if (resetScroll) list.scrollTop = 0;
   }
 
-  function update() { renderDoll(); renderWardrobe(); save(); }
+  function update() { renderDoll(); renderWardrobe(); saveKeys(); }
 
   // ---------- điều hướng ----------
   const titleScreen = document.getElementById('title-screen');
@@ -351,9 +348,20 @@
   document.getElementById('btn-start').onclick = () => show(true);
   document.getElementById('btn-home').onclick = () => show(false);
 
-  // ---------- nạp mẫu ảnh từ assets/items/items.js ----------
-  // Ảnh nằm trong assets/items/<loại>/, canvas 1047x1501 như ảnh nhân vật.
-  // Khung xem trước mặc định của từng loại (toạ độ pixel trên ảnh nhân vật).
+  // ======================================================================
+  //  TỰ NẠP ẢNH ĐỒ: bỏ ảnh vào assets/items/<loại>/ là tự hiện trong danh sách.
+  //  - Tên hiển thị = tên file (bỏ đuôi, '-' '_' thành khoảng trắng).
+  //  - File "<tên>_sau.png" = lớp sau lưng của "<tên>.png".
+  //  - Ảnh tự căn theo cỡ:
+  //      1047x1501 : vẽ trên ảnh nhân vật -> đặt chồng thẳng.
+  //      1072x1228 : vẽ trên template của chara.png (ô ~16.12px) -> tự phóng & căn ô.
+  //      cỡ khác   : co cho vừa ảnh nhân vật.
+  //  - assets/items/items.js vẫn dùng được để ghi đè tên, số tim, vị trí...
+  // ======================================================================
+  const IMG_EXT = /\.(png|webp|gif|jpe?g)$/i;
+  const BACK_SUFFIX = /[_-]sau$/i;
+
+  // Khung xem trước của từng loại (toạ độ trên ảnh nhân vật 1047x1501)
   const PREVIEW_BOX = {
     hair:   [80, 20, 890, 940],
     top:    [200, 740, 650, 500],
@@ -362,28 +370,163 @@
     hat:    [150, -40, 750, 520],
     acc:    [120, 0, 810, 1380],
   };
-  const userItems = window.ITEM_IMAGES || {};
-  for (const cat of CATEGORIES) {
-    for (const e of userItems[cat.id] || []) {
-      if (!e || !e.file) continue;
-      const dir = `assets/items/${cat.id}/`;
-      cat.items.push({
-        name: e.name || e.file.replace(/\.[^.]+$/, ''),
-        stars: e.stars,
-        under: e.under,
-        img: dir + e.file,
-        backImg: e.back ? dir + e.back : null,
-        place: e.crop && e.to && e.size ? { crop: e.crop, to: e.to, size: e.size } : null,
-        box: e.box || (e.to ? [e.to[0] - 20, e.to[1] - 20, e.to[2] + 40, e.to[3] + 40] : PREVIEW_BOX[cat.id]),
-      });
+  // Vùng giữ lại khi ảnh vẽ trên template khác (bỏ phần thừa như quần/giày trong ảnh áo)
+  const CLIP = {
+    top:    [0, 560, IMG_W, 570],    // cổ -> hông
+    bottom: [0, 1090, IMG_W, 125],   // hông -> gối
+    shoes:  [0, 1200, IMG_W, 200],
+  };
+  const CLIP_ALL = [0, -200, IMG_W, IMG_H + 200];
+
+  // Template đã biết: ảnh gốc (x,y) -> ảnh nhân vật (x*s + ox, y*s + oy)
+  const TEMPLATES = [
+    { w: 1047, h: 1501, s: 1, ox: 0, oy: 0, same: true },
+    (() => { // chara.png: ô (0,0) của áo ở (357,673), khớp ô cột 13 hàng 28 của nhân vật
+      const s = CELL / 16.12;
+      return { w: 1072, h: 1228, s, ox: OX + CELL * 13 - 357 * s, oy: OY + CELL * 28 - 673 * s };
+    })(),
+  ];
+
+  const loadSize = (src) => new Promise((res) => {
+    const im = new Image();
+    im.onload = () => res([im.naturalWidth, im.naturalHeight]);
+    im.onerror = () => res(null);
+    im.src = src;
+  });
+
+  // Tính cách đặt ảnh lên nhân vật dựa vào cỡ ảnh
+  function autoPlace(catId, w, h) {
+    let t = TEMPLATES.find(t => t.w === w && t.h === h);
+    if (t?.same) return null;                       // đặt chồng thẳng
+    if (!t) {                                       // cỡ lạ: co cho vừa
+      const s = Math.min(IMG_W / w, IMG_H / h);
+      t = { s, ox: (IMG_W - w * s) / 2, oy: (IMG_H - h * s) / 2 };
     }
+    const [cx, cy, cw, ch] = CLIP[catId] || CLIP_ALL;
+    return {
+      size: [w, h],
+      crop: [(cx - t.ox) / t.s, (cy - t.oy) / t.s, cw / t.s, ch / t.s],
+      to: [cx, cy, cw, ch],
+    };
   }
 
-  Object.assign(state, load());
-  for (const c of CATEGORIES) {
-    if (!(state[c.id] >= 0 && state[c.id] < c.items.length)) state[c.id] = 0;
+  const prettyName = (file) =>
+    decodeURIComponent(file).replace(IMG_EXT, '').replace(/[-_]+/g, ' ').trim();
+
+  // Mở thẳng file (file://) thì trình duyệt chặn đọc thư mục -> không quét,
+  // chỉ dùng assets/items/list.js (server.js tự ghi) + items.js.
+  const IS_FILE = location.protocol === 'file:';
+
+  // Lấy danh sách file trong từng thư mục loại đồ
+  async function listItemFiles() {
+    if (IS_FILE) return window.ITEM_FILES || {};
+    // 1) server.js của dự án: /api/items
+    try {
+      const r = await fetch('api/items', { cache: 'no-store' });
+      if (r.ok) return await r.json();
+    } catch {}
+    // 2) server khác có trang liệt kê thư mục (Live Server, python -m http.server...)
+    const out = {};
+    for (const cat of CATEGORIES) {
+      try {
+        const r = await fetch(`assets/items/${cat.id}/`, { cache: 'no-store' });
+        if (!r.ok) continue;
+        const html = await r.text();
+        out[cat.id] = [...html.matchAll(/href="([^"?#]+)"/g)]
+          .map(m => decodeURIComponent(m[1].split('/').filter(Boolean).pop() || ''))
+          .filter(f => IMG_EXT.test(f));
+      } catch {}
+    }
+    // 3) không đọc được thư mục -> dùng list.js
+    return Object.keys(out).length ? out : (window.ITEM_FILES || {});
   }
-  buildWardrobe();
-  update();
-  if (location.hash === '#game') show(true);
+
+  const BUILTIN = Object.fromEntries(CATEGORIES.map(c => [c.id, c.items.slice()]));
+  let lastListing = '';
+
+  async function loadUserItems() {
+    const listing = await listItemFiles();
+    const manifest = window.ITEM_IMAGES || {};
+    const key = JSON.stringify(listing) + JSON.stringify(manifest);
+    if (key === lastListing) return false;
+    lastListing = key;
+
+    for (const cat of CATEGORIES) {
+      const dir = `assets/items/${cat.id}/`;
+      const files = [...new Set(listing[cat.id] || [])].sort((a, b) => a.localeCompare(b, 'vi'));
+      const extra = Object.fromEntries((manifest[cat.id] || []).filter(e => e?.file).map(e => [e.file, e]));
+      // ảnh chỉ khai báo trong items.js (khi không có server) vẫn được dùng
+      for (const f of Object.keys(extra)) if (!files.includes(f)) files.push(f);
+
+      const fronts = files.filter(f => !BACK_SUFFIX.test(f.replace(IMG_EXT, '')));
+      const items = await Promise.all(fronts.map(async (file) => {
+        const e = extra[file] || {};
+        const base = file.replace(IMG_EXT, '');
+        const backFile = e.back || files.find(f => f.replace(IMG_EXT, '').replace(BACK_SUFFIX, '') === base && f !== file);
+        const size = e.size || await loadSize(dir + file);
+        if (!size) return null;
+        const place = e.crop && e.to ? { crop: e.crop, to: e.to, size } : autoPlace(cat.id, size[0], size[1]);
+        return {
+          key: dir + file,
+          name: e.name || prettyName(file),
+          stars: e.stars,
+          under: e.under,
+          img: dir + file,
+          backImg: backFile ? dir + backFile : null,
+          place,
+          box: e.box || PREVIEW_BOX[cat.id],
+        };
+      }));
+      cat.items = [...BUILTIN[cat.id], ...items.filter(Boolean)];
+    }
+    return true;
+  }
+
+  // Lưu bộ đồ theo khoá (tên/đường dẫn ảnh) để thêm ảnh mới không làm lệch
+  const keyOf = (it) => it ? (it.key || it.name) : null;
+  const saveKeys = () => {
+    try {
+      const o = {};
+      for (const c of CATEGORIES) o[c.id] = keyOf(c.items[state[c.id] || 0]);
+      localStorage.setItem('thoitrang.outfit2', JSON.stringify(o));
+    } catch {}
+  };
+  const restoreKeys = (o) => {
+    for (const c of CATEGORIES) {
+      const i = c.items.findIndex(it => keyOf(it) === o[c.id]);
+      state[c.id] = i > 0 ? i : 0;
+    }
+  };
+  let savedKeys = {};
+  try { savedKeys = JSON.parse(localStorage.getItem('thoitrang.outfit2') || '{}'); } catch {}
+
+  function showFileHint() {
+    const el = document.createElement('div');
+    el.className = 'file-hint';
+    el.innerHTML = 'Đang mở thẳng file: ảnh mới bỏ vào thư mục sẽ không tự hiện.<br>Hãy mở game bằng <b>start.bat</b>.';
+    el.onclick = () => el.remove();
+    document.querySelector('.laptop').appendChild(el);
+    setTimeout(() => el.remove(), 8000);
+  }
+
+  (async () => {
+    await loadUserItems();
+    restoreKeys(savedKeys);
+    buildWardrobe();
+    update();
+    if (location.hash === '#game') show(true);
+
+    if (IS_FILE) { showFileHint(); return; }
+
+    // Tự cập nhật khi thêm/xoá ảnh trong thư mục (chỉ khi chạy qua server)
+    setInterval(async () => {
+      const current = {};
+      for (const c of CATEGORIES) current[c.id] = keyOf(c.items[state[c.id] || 0]);
+      if (await loadUserItems()) {
+        restoreKeys(current);
+        buildWardrobe();
+        update();
+      }
+    }, 2000);
+  })();
 })();

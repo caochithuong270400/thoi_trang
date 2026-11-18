@@ -249,3 +249,18 @@
   .card { padding: 4px 4px 6px; }
   .card-name { font-size: 13px; }
 }
+
+/* Nhắc mở bằng start.bat khi chạy file:// */
+.file-hint {
+  position: absolute; left: 50%; top: 10px; transform: translateX(-50%);
+  z-index: 10;
+  max-width: min(92vw, 520px);
+  padding: 8px 12px;
+  font: 16px/1.2 "VT323", monospace;
+  color: var(--ink);
+  background: #fff;
+  border: 3px solid var(--ink);
+  box-shadow: 0 3px 0 var(--ink);
+  text-align: center;
+  cursor: pointer;
+}

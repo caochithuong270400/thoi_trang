@@ -1,37 +1,55 @@
 # Ảnh đồ cho nhân vật
 
-## Thư mục
+**Bỏ ảnh vào đúng thư mục là đồ tự hiện trong game.** Không cần sửa code.
+Game đang mở cũng tự cập nhật sau khoảng 2 giây.
 
-| Thư mục   | Loại        |
-|-----------|-------------|
-| `hair/`   | Tóc         |
-| `top/`    | Áo, đầm     |
-| `bottom/` | Váy, quần   |
-| `shoes/`  | Giày        |
-| `hat/`    | Mũ          |
-| `acc/`    | Phụ kiện    |
+| Thư mục   | Loại      |
+|-----------|-----------|
+| `hair/`   | Tóc       |
+| `top/`    | Áo, đầm   |
+| `bottom/` | Váy, quần |
+| `shoes/`  | Giày      |
+| `hat/`    | Mũ        |
+| `acc/`    | Phụ kiện  |
 
-## Cách vẽ ảnh để mặc khít
+## Mở game
 
-1. Mở `assets/character.png` (1047 × 1501 px) trong Aseprite / Photoshop / Piskel.
-2. Vẽ món đồ trên **một layer mới** đè lên nhân vật.
-3. Ẩn layer nhân vật, xuất **PNG nền trong suốt, giữ nguyên cỡ 1047 × 1501**.
-   Không cắt ảnh. Game đặt ảnh chồng thẳng lên nhân vật, nên chỉ khớp khi
-   ảnh cùng cỡ.
-4. Lưới pixel của nhân vật: mỗi ô khoảng **22.2 px**, bắt đầu ở (2, 153).
-   Vẽ theo lưới này thì đồ trông cùng kiểu với nhân vật.
+Bấm đúp **`start.bat`** ở thư mục gốc. Trình duyệt sẽ mở `http://localhost:5173`.
 
-Phần nằm sau lưng nhân vật (ví dụ tóc dài) thì xuất thành ảnh riêng
-và khai báo bằng `back`.
+> Nếu mở thẳng `index.html` thì trình duyệt không cho đọc thư mục, nên ảnh
+> mới sẽ không tự hiện. Khi đó phải khai báo ảnh trong `items.js`.
 
-## Khai báo
+## Đặt tên file
 
-Mở `items.js` và thêm một dòng vào đúng loại:
+- Tên file là tên hiện trong game: `Áo khoác xanh.png` hiện là **Áo khoác xanh**.
+  Dấu `-` và `_` được đổi thành khoảng trắng.
+- File tên `<tên>_sau.png` là **lớp nằm sau lưng** nhân vật của `<tên>.png`.
+  Ví dụ `Tóc dài.png` đi cùng `Tóc dài_sau.png`.
+- Danh sách xếp theo tên file.
+
+## Cỡ ảnh: game tự căn
+
+| Cỡ ảnh        | Vẽ trên                           | Game làm gì                                    |
+|---------------|-----------------------------------|------------------------------------------------|
+| 1047 × 1501   | `assets/character.png`            | Đặt chồng thẳng lên nhân vật                   |
+| 1072 × 1228   | template của `top/chara.png`      | Phóng và căn đúng lưới ô; chỉ giữ phần của loại đó (ví dụ ảnh áo thì bỏ quần, giày) |
+| Cỡ khác       | -                                 | Co lại cho vừa (có thể lệch, nên dùng 2 cỡ trên) |
+
+Cách vẽ: mở template, vẽ đồ trên **layer mới**, ẩn layer nhân vật, rồi xuất
+**PNG nền trong suốt, giữ nguyên cỡ ảnh, không cắt**.
+
+## `items.js`: không bắt buộc
+
+Chỉ dùng khi muốn đổi tên, số tim, hoặc tự đặt vị trí cho một ảnh:
 
 ```js
-hair: [
-  { file: 'toc-dai.png', back: 'toc-dai-sau.png', name: 'Tóc dài', stars: 4 },
+top: [
+  { file: 'chara.png', name: 'Áo khoác xanh', stars: 4 },
 ],
 ```
 
-Lưu file rồi tải lại trang. Mẫu mới hiện ở cuối danh sách của loại đó.
+Tuỳ chọn:
+- `under: true`: dùng cho phụ kiện, để nó nằm dưới tóc.
+- `box: [x, y, rộng, cao]`: khung ảnh xem trước.
+- `crop` + `to`: tự đặt vị trí cho ảnh có cỡ lạ. 1 ô của nhân vật = 22.2px;
+  ô ở cột c, hàng r nằm tại x = 2 + 22.2·c, y = 153 + 22.2·r.
