@@ -262,40 +262,61 @@
   //  MÀU DA / MÀU MẮT: tô lại ảnh nhân vật bằng canvas.
   //  - Da: điểm ảnh sáng (da) + bóng tím nhạt, giữ độ sáng/tối gốc.
   //  - Mắt: điểm đỏ/cam/vàng trong 2 vùng mắt -> xoay màu (hue).
-  //  Má hồng, viền, lông mày, đốm sáng trong mắt giữ nguyên.
+  //  - Viền da: điểm tím (2 tông đậm/nhạt) bao quanh da -> đổi màu, giữ tông đậm/nhạt.
+  //  Má hồng, lông mày, đốm sáng trong mắt giữ nguyên.
   // ======================================================================
+  // Giá trị -1 = màu người chơi tự chọn bằng bảng màu (lưu ở look.custom).
   const SKINS = [
     { name: 'Mặc định', c: null, show: '#fdecef' },
     { name: 'Trắng sứ', c: '#fff4ea' },
-    { name: 'Hồng đào', c: '#ffd9c7' },
     { name: 'Bánh mật', c: '#f1c08f' },
     { name: 'Ngăm', c: '#d69a6c' },
-    { name: 'Nâu', c: '#a8704a' },
     { name: 'Nâu sẫm', c: '#6e4430' },
-    { name: 'Xanh tiên', c: '#c8f0dc' },
-    { name: 'Tím mộng', c: '#ded0ff' },
   ];
   const EYES = [
     { name: 'Đỏ', rot: 0, show: '#f03030' },
     { name: 'Xanh dương', rot: 215, show: '#3a7bf0' },
     { name: 'Xanh lá', rot: 125, show: '#2fbf55' },
     { name: 'Tím', rot: 275, show: '#9b4df0' },
-    { name: 'Hồng', rot: 320, show: '#f04fa8' },
-    { name: 'Hổ phách', rot: 30, spread: 0.4, show: '#f0a020' },
     { name: 'Nâu', rot: 15, spread: 0.4, sat: 0.55, lig: 0.75, show: '#8a5030' },
-    { name: 'Đen', rot: 0, sat: 0.08, lig: 0.5, show: '#2a2228' },
   ];
+  // Viền da. auto: lấy màu da hiện tại làm tối đi.
+  const LINES = [
+    { name: 'Mặc định', c: null, show: '#761b8c' },
+    { name: 'Theo da', auto: true },
+    { name: 'Đen', c: '#1c1418' },
+    { name: 'Nâu', c: '#5a3020' },
+  ];
+  const LOOK_LISTS = { skin: SKINS, line: LINES, eye: EYES };
+  const CUSTOM_DEF = { skin: '#f1c08f', line: '#1c1418', eye: '#3a7bf0' };
+  // Lựa chọn hiện tại của 1 phần (kể cả màu tự chọn)
+  function lookOpt(part) {
+    if (look[part] !== -1) return LOOK_LISTS[part][look[part]];
+    const c = look.custom[part];
+    if (part !== 'eye') return { name: 'Tự chọn', c };
+    const [h, s, l] = rgb2hsl(...hex2rgb(c));       // mắt: xoay màu theo màu chọn
+    return { name: 'Tự chọn', c, rot: h, spread: 0.4, sat: s / 0.9, lig: l / 0.42 };
+  }
+  const lineColor = (o) => {
+    if (!o.auto) return o.c;
+    const sk = lookOpt('skin'), [h, s, l] = rgb2hsl(...hex2rgb(sk.c || sk.show));
+    const [r, g, b] = hsl2rgb(h, Math.max(0.45, s * 0.8), Math.min(0.3, l * 0.32));
+    return '#' + [r, g, b].map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
+  };
   // Dáng nhân vật. legShift: [trái, phải] số ô dịch ống chân của đồ vẽ cho dáng 1.
   // Dáng 2 tạo bằng tools/make_pose2.py từ dáng bên phải của assets/character_2.png.
   const POSES = [
     { name: 'Dáng 1', src: 'assets/character.png' },
     { name: 'Dáng 2', src: 'assets/character_pose2.png', legShift: [1, -2] },
   ];
-  const look = { pose: 0, skin: 0, eye: 0 };
+  const look = { pose: 0, skin: 0, eye: 0, line: 0, custom: {} };
   try { Object.assign(look, JSON.parse(localStorage.getItem('thoitrang.look') || '{}')); } catch {}
   if (!POSES[look.pose]) look.pose = 0;
-  if (!SKINS[look.skin]) look.skin = 0;
-  if (!EYES[look.eye]) look.eye = 0;
+  look.custom = { ...CUSTOM_DEF, ...look.custom };
+  for (const part in LOOK_LISTS) {
+    const ok = look[part] === -1 ? /^#[0-9a-f]{6}$/i.test(look.custom[part]) : LOOK_LISTS[part][look[part]];
+    if (!ok) look[part] = 0;
+  }
   const baseSrc = () => POSES[look.pose].src;
   let charSrc = baseSrc();
   const lookBases = {};         // theo từng dáng: dữ liệu ảnh gốc + danh sách điểm da/mắt
@@ -329,7 +350,7 @@
           const ctx = cv.getContext('2d');
           ctx.drawImage(im, 0, 0);
           const img = ctx.getImageData(0, 0, IMG_W, IMG_H);   // file:// sẽ lỗi ở đây
-          const d = img.data, skin = [], skinF = [], eye = [], eyeHSL = [];
+          const d = img.data, skin = [], skinF = [], eye = [], eyeHSL = [], line = [], lineL = [];
           const LB = 241.4;                                  // độ sáng màu da gốc (253,236,239)
           for (let i = 0; i < d.length; i += 4) {
             if (!d[i + 3]) continue;
@@ -342,10 +363,14 @@
             }
             if (inEye && Math.min(r, g, b) > 245) continue;    // đốm sáng trong mắt
             if (l > 0.82 || (l > 0.44 && h >= 270 && h <= 325)) {
-              skin.push(i); skinF.push((0.299 * r + 0.587 * g + 0.114 * b) / LB);
+              skin.push(i); skinF.push((0.299 * r + 0.587 * g + 0.114 * b) / LB); continue;
+            }
+            const inBrow = y >= 470 && y <= 540 && x >= 340 && x <= 710;   // lông mày
+            if (!inEye && !inBrow && s > 0.3 && l >= 0.13 && l <= 0.44 && h >= 265 && h <= 320) {
+              line.push(i); lineL.push(l);                    // viền tím quanh da
             }
           }
-          lookBases[src] = { ctx, cv, img, orig: new Uint8ClampedArray(d), skin, skinF, eye, eyeHSL };
+          lookBases[src] = { ctx, cv, img, orig: new Uint8ClampedArray(d), skin, skinF, eye, eyeHSL, line, lineL };
         } catch { lookError = true; }
         res(lookBases[src] || null);
       };
@@ -358,14 +383,14 @@
 
   async function applyLook() {
     const src = baseSrc();
-    const key = `${look.pose}|${look.skin}|${look.eye}`;
-    if (!look.skin && !look.eye) { charSrc = src; return; }
+    const sk = lookOpt('skin'), ey = lookOpt('eye'), lc = lineColor(lookOpt('line'));
+    const key = `${look.pose}|${sk.c}|${look.eye === -1 ? ey.c : look.eye}|${lc}`;
+    if (!sk.c && !look.eye && !lc) { charSrc = src; return; }
     if (lookCache[key]) { charSrc = lookCache[key]; return; }
     const B = await loadLookBase(src);
     if (!B) { charSrc = src; return; }
     const d = B.img.data;
     d.set(B.orig);
-    const sk = SKINS[look.skin];
     if (sk.c) {
       const [tr, tg, tb] = hex2rgb(sk.c), top = 255 / 241.4 - 1;
       B.skin.forEach((i, n) => {
@@ -377,7 +402,6 @@
         }
       });
     }
-    const ey = EYES[look.eye];
     if (ey.rot || ey.sat || ey.lig) {
       B.eye.forEach((i, n) => {
         const h = B.eyeHSL[n * 3], s = B.eyeHSL[n * 3 + 1], l = B.eyeHSL[n * 3 + 2];
@@ -386,10 +410,23 @@
         d[i] = r; d[i + 1] = g; d[i + 2] = b;
       });
     }
+    if (lc) {
+      const [th, ts, tl] = rgb2hsl(...hex2rgb(lc)), LREF = 0.24;   // LREF: độ sáng viền gốc (trung bình 2 tông)
+      B.line.forEach((i, n) => {
+        const [r, g, b] = hsl2rgb(th, ts, Math.min(0.92, B.lineL[n] / LREF * tl));
+        d[i] = r; d[i + 1] = g; d[i + 2] = b;
+      });
+    }
     B.ctx.putImageData(B.img, 0, 0);
     const blob = await new Promise(r => B.cv.toBlob(r, 'image/png'));
     charSrc = lookCache[key] = URL.createObjectURL(blob);
+    // màu tự chọn đổi liên tục -> chỉ giữ ảnh mới nhất, bỏ ảnh cũ
+    if (look.skin === -1 || look.eye === -1 || look.line === -1) {
+      if (lastCustomKey && lastCustomKey !== key) { URL.revokeObjectURL(lookCache[lastCustomKey]); delete lookCache[lastCustomKey]; }
+      lastCustomKey = key;
+    } else lastCustomKey = null;
   }
+  let lastCustomKey = null;
 
   async function setLook(part, i) {
     look[part] = i;
@@ -398,6 +435,18 @@
     await applyLook();
     renderDoll();
     if (lookError) renderWardrobe();
+  }
+
+  // Kéo trong bảng màu: cập nhật nhân vật ngay, không vẽ lại danh sách (để bảng màu không bị đóng).
+  let pickBusy = false, pickNext = false;
+  async function pickColor(part, color) {
+    look[part] = -1; look.custom[part] = color;
+    const wrap = wardrobe.querySelector(`.swatches[data-part="${part}"]`);
+    wrap?.querySelectorAll('.swatch').forEach(b => b.classList.toggle('selected', b.classList.contains('picker')));
+    if (pickBusy) { pickNext = true; return; }
+    pickBusy = true;
+    do { pickNext = false; await applyLook(); renderDoll(); } while (pickNext);
+    pickBusy = false;
   }
 
   function previewSvg(it) {
@@ -508,12 +557,24 @@
     update();
   });
 
+  wardrobe.addEventListener('input', (e) => {
+    const inp = e.target.closest('[data-pick]');
+    if (inp) pickColor(inp.dataset.pick, inp.value);
+  });
+  wardrobe.addEventListener('change', (e) => {          // đóng bảng màu -> lưu + vẽ lại
+    const inp = e.target.closest('[data-pick]');
+    if (inp) setLook(inp.dataset.pick, -1);
+  });
+
   const swatches = (part, list) => `
-    <div class="swatches">${list.map((o, i) => `
-      <button class="swatch${look[part] === i ? ' selected' : ''}" data-look="${part}" data-v="${i}" title="${o.name}">
-        <span class="dot" style="background:${o.c || o.show}"></span>
-        <span class="card-name">${o.name}</span>
+    <div class="swatches colors" data-part="${part}">${list.map((o, i) => `
+      <button class="swatch${look[part] === i ? ' selected' : ''}" data-look="${part}" data-v="${i}" title="${o.name}" aria-label="${o.name}">
+        <span class="dot" style="background:${o.auto ? lineColor(o) : o.c || o.show}"></span>
       </button>`).join('')}
+      <label class="swatch picker${look[part] === -1 ? ' selected' : ''}" title="Bảng màu: tự chọn màu">
+        <span class="dot rainbow"></span>
+        <input type="color" data-pick="${part}" value="${look.custom[part]}" aria-label="Bảng màu">
+      </label>
     </div>`;
 
   function renderWardrobe(resetScroll) {
@@ -537,6 +598,7 @@
       list.innerHTML = `
         ${lookError ? '<p class="look-note">Cần mở game bằng start.bat để đổi màu.</p>' : ''}
         <div class="look-sec">Màu da</div>${swatches('skin', SKINS)}
+        <div class="look-sec">Viền da</div>${swatches('line', LINES)}
         <div class="look-sec">Màu mắt</div>${swatches('eye', EYES)}`;
       if (resetScroll) list.scrollTop = 0;
       return;
@@ -635,15 +697,23 @@
   // Mở thẳng file (file://) thì trình duyệt chặn đọc thư mục -> không quét,
   // chỉ dùng assets/items/list.js (server.js tự ghi) + items.js.
   const IS_FILE = location.protocol === 'file:';
+  // Chỉ dò thư mục khi chạy trên máy mình (start.bat, Live Server...).
+  // Trang đã đăng lên mạng (Vercel...) là web tĩnh: không có /api/items, không liệt kê thư mục
+  // -> dùng thẳng list.js, không gửi request thừa (tránh lỗi 404 trong console).
+  const IS_LOCAL = /^(localhost|127\.|\[?::1\]?$|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(location.hostname);
+  let listMode = IS_FILE || !IS_LOCAL ? 'static' : null;   // 'api' | 'dir' | 'static', dò 1 lần rồi nhớ
 
   // Lấy danh sách file trong từng thư mục loại đồ
   async function listItemFiles() {
-    if (IS_FILE) return window.ITEM_FILES || {};
+    if (listMode === 'static') return window.ITEM_FILES || {};
     // 1) server.js của dự án: /api/items
-    try {
-      const r = await fetch('api/items', { cache: 'no-store' });
-      if (r.ok) return await r.json();
-    } catch {}
+    if (listMode !== 'dir') {
+      try {
+        const r = await fetch('api/items', { cache: 'no-store' });
+        if (r.ok) { listMode = 'api'; return await r.json(); }
+      } catch {}
+      if (listMode === 'api') return null;               // server tạm lỗi: giữ danh sách cũ
+    }
     // 2) server khác có trang liệt kê thư mục (Live Server, python -m http.server...)
     const out = {};
     for (const cat of CATEGORIES) {
@@ -656,8 +726,10 @@
           .filter(f => IMG_EXT.test(f));
       } catch {}
     }
-    // 3) không đọc được thư mục -> dùng list.js
-    return Object.keys(out).length ? out : (window.ITEM_FILES || {});
+    if (Object.keys(out).length) { listMode = 'dir'; return out; }
+    // 3) không đọc được thư mục -> dùng list.js, lần sau không dò nữa
+    listMode = 'static';
+    return window.ITEM_FILES || {};
   }
 
   for (const c of CATEGORIES) for (const it of c.items) if (it) it.cat = c.id;
@@ -688,6 +760,7 @@
 
   async function loadUserItems() {
     const listing = await listItemFiles();
+    if (!listing) return false;
     const manifest = window.ITEM_IMAGES || {};
     const key = JSON.stringify(listing) + JSON.stringify(manifest);
     if (key === lastListing) return false;
@@ -762,9 +835,11 @@
     if (location.hash === '#game') show(true);
 
     if (IS_FILE) { showFileHint(); return; }
+    if (listMode === 'static') return;      // web tĩnh: không có gì để theo dõi
 
     // Tự cập nhật khi thêm/xoá ảnh trong thư mục (chỉ khi chạy qua server)
-    setInterval(async () => {
+    const timer = setInterval(async () => {
+      if (listMode === 'static') return clearInterval(timer);
       const current = {};
       for (const c of CATEGORIES) current[c.id] = keyOf(c.items[state[c.id] || 0]);
       if (await loadUserItems()) {
