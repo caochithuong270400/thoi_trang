@@ -218,9 +218,32 @@
     return `<svg x="${tx}" y="${ty}" width="${tw}" height="${th}" viewBox="${place.crop.join(' ')}"
       preserveAspectRatio="none" overflow="hidden">${img(place.size[0], place.size[1])}</svg>`;
   };
-  const layerSvg = (it, side) => it.img
-    ? imgSvg(side === 'back' ? it.backImg : it.img, it.place)
-    : (it[side] ? grid(rectsSvg(it[side])) : '');
+  const layerSvg = (it, side) => {
+    const p = look.pose;
+    if (it.img) {
+      const own = it.poseImg?.[p];                     // ảnh riêng cho dáng này (<tên>_dang2.png)
+      if (own && side === 'front') return imgSvg(own, it.ownPlace?.[p]);
+      const svg = imgSvg(side === 'back' ? it.backImg : it.img, it.place);
+      return own ? svg : legFit(it, svg);
+    }
+    return it[side] ? legFit(it, grid(rectsSvg(it[side]))) : '';
+  };
+
+  // Đồ vẽ cho dáng 1 -> tự dịch phần ống chân cho vừa dáng khác.
+  // Từ hàng LEG_ROW trở xuống: nửa trái dịch `l` ô, nửa phải dịch `r` ô.
+  const LEG_ROW = 43, LEG_MID = 23.5;
+  function legFit(it, svg) {
+    const shift = POSES[look.pose].legShift;
+    if (!shift || !svg || !LEG_CATS.has(it.cat)) return svg;
+    const Y = OY + LEG_ROW * CELL, X = OX + LEG_MID * CELL;
+    const clip = (id, x, y, w, h) =>
+      `<clipPath id="${id}"><rect x="${x}" y="${y}" width="${w}" height="${h}"/></clipPath>`;
+    return `<defs>${clip('lf-t', -1e4, -1e4, 2e4, Y + 1e4)}${clip('lf-l', -1e4, Y, X + 1e4, 1e4)}${clip('lf-r', X, Y, 1e4, 1e4)}</defs>
+      <g clip-path="url(#lf-t)">${svg}</g>
+      <g transform="translate(${shift[0] * CELL} 0)"><g clip-path="url(#lf-l)">${svg}</g></g>
+      <g transform="translate(${shift[1] * CELL} 0)"><g clip-path="url(#lf-r)">${svg}</g></g>`;
+  }
+  const LEG_CATS = new Set(['bottom', 'shoes']);
 
   function renderDoll() {
     let back = '', front = '';
@@ -262,13 +285,20 @@
     { name: 'Nâu', rot: 15, spread: 0.4, sat: 0.55, lig: 0.75, show: '#8a5030' },
     { name: 'Đen', rot: 0, sat: 0.08, lig: 0.5, show: '#2a2228' },
   ];
-  const BASE_SRC = 'assets/character.png';
-  const look = { skin: 0, eye: 0 };
+  // Dáng nhân vật. legShift: [trái, phải] số ô dịch ống chân của đồ vẽ cho dáng 1.
+  // Dáng 2 tạo bằng tools/make_pose2.py từ dáng bên phải của assets/character_2.png.
+  const POSES = [
+    { name: 'Dáng 1', src: 'assets/character.png' },
+    { name: 'Dáng 2', src: 'assets/character_pose2.png', legShift: [1, -2] },
+  ];
+  const look = { pose: 0, skin: 0, eye: 0 };
   try { Object.assign(look, JSON.parse(localStorage.getItem('thoitrang.look') || '{}')); } catch {}
+  if (!POSES[look.pose]) look.pose = 0;
   if (!SKINS[look.skin]) look.skin = 0;
   if (!EYES[look.eye]) look.eye = 0;
-  let charSrc = BASE_SRC;
-  let lookBase = null;          // dữ liệu ảnh gốc + danh sách điểm da/mắt
+  const baseSrc = () => POSES[look.pose].src;
+  let charSrc = baseSrc();
+  const lookBases = {};         // theo từng dáng: dữ liệu ảnh gốc + danh sách điểm da/mắt
   let lookError = false;        // không đọc được điểm ảnh (mở bằng file://)
   const lookCache = {};
 
@@ -288,8 +318,8 @@
   };
   const hex2rgb = (h) => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
 
-  function loadLookBase() {
-    if (lookBase || lookError) return Promise.resolve(lookBase);
+  function loadLookBase(src) {
+    if (lookBases[src] || lookError) return Promise.resolve(lookBases[src] || null);
     return new Promise((res) => {
       const im = new Image();
       im.onload = () => {
@@ -315,22 +345,24 @@
               skin.push(i); skinF.push((0.299 * r + 0.587 * g + 0.114 * b) / LB);
             }
           }
-          lookBase = { ctx, cv, img, orig: new Uint8ClampedArray(d), skin, skinF, eye, eyeHSL };
+          lookBases[src] = { ctx, cv, img, orig: new Uint8ClampedArray(d), skin, skinF, eye, eyeHSL };
         } catch { lookError = true; }
-        res(lookBase);
+        res(lookBases[src] || null);
       };
       im.onerror = () => { lookError = true; res(null); };
       // Mở thẳng file:// thì đọc ảnh từ assets/character.js (data URL) để không bị chặn
-      im.src = location.protocol === 'file:' && window.CHARACTER_DATA ? window.CHARACTER_DATA : BASE_SRC;
+      const data = location.protocol === 'file:' && window.CHARACTER_DATA;
+      im.src = (data && (typeof data === 'string' ? data : data[src])) || src;
     });
   }
 
   async function applyLook() {
-    const key = `${look.skin}|${look.eye}`;
-    if (key === '0|0') { charSrc = BASE_SRC; return; }
+    const src = baseSrc();
+    const key = `${look.pose}|${look.skin}|${look.eye}`;
+    if (!look.skin && !look.eye) { charSrc = src; return; }
     if (lookCache[key]) { charSrc = lookCache[key]; return; }
-    const B = await loadLookBase();
-    if (!B) { charSrc = BASE_SRC; return; }
+    const B = await loadLookBase(src);
+    if (!B) { charSrc = src; return; }
     const d = B.img.data;
     d.set(B.orig);
     const sk = SKINS[look.skin];
@@ -411,6 +443,12 @@
     <rect x="2" y="3" width="1" height="2" fill="#3a7bf0"/><rect x="5" y="3" width="1" height="2" fill="#3a7bf0"/>
     <rect x="1" y="5" width="1" height="1" fill="#f48fb1"/><rect x="6" y="5" width="1" height="1" fill="#f48fb1"/></svg>`;
 
+  // icon dáng đứng (pixel 8x8)
+  const ICON_POSE = `<svg viewBox="0 0 8 8" fill="${OUTLINE}">
+    <rect x="3" y="0" width="2" height="2"/><rect x="1" y="2" width="6" height="1"/>
+    <rect x="2" y="3" width="4" height="2"/><rect x="2" y="5" width="1" height="3"/>
+    <rect x="5" y="5" width="1" height="3"/></svg>`;
+
   // tim độ hiếm (pixel 7x6)
   const HEART = (on) => `<svg viewBox="0 0 7 6"><path fill="${on ? '#e9447f' : '#f6d3e2'}"
     d="M1 0h2v1h1v-1h2v1h1v2h-1v1h-1v1h-1v1h-1v-1h-1v-1h-1v-1h-1v-2h1z"/></svg>`;
@@ -425,6 +463,10 @@
           <span class="ico">${previewSvg(cat.items.find(Boolean))}</span>
           <span class="lbl">${SHORT[cat.id] || cat.label}</span>
         </button>`).join('') + `
+        <button class="px-btn cat-btn" data-tab="pose" title="Dáng">
+          <span class="ico">${ICON_POSE}</span>
+          <span class="lbl">Dáng</span>
+        </button>
         <button class="px-btn cat-btn" data-tab="look" title="Màu da & mắt">
           <span class="ico">${ICON_LOOK}</span>
           <span class="lbl">Da/Mắt</span>
@@ -479,6 +521,17 @@
       t.classList.toggle('active', t.dataset.tab === activeCat));
     const list = wardrobe.querySelector('.items');
 
+    if (activeCat === 'pose') {
+      wardrobe.querySelector('.cat-title').textContent = 'Dáng';
+      list.innerHTML = `<div class="swatches poses">${POSES.map((o, i) => `
+        <button class="swatch${look.pose === i ? ' selected' : ''}" data-look="pose" data-v="${i}" title="${o.name}">
+          <span class="pose-thumb"><svg viewBox="180 40 690 1340"><image href="${o.src}" width="${IMG_W}" height="${IMG_H}" style="image-rendering:pixelated"/></svg></span>
+          <span class="card-name">${o.name}</span>
+        </button>`).join('')}</div>`;
+      if (resetScroll) list.scrollTop = 0;
+      return;
+    }
+
     if (activeCat === 'look') {
       wardrobe.querySelector('.cat-title').textContent = 'Da & Mắt';
       list.innerHTML = `
@@ -525,6 +578,7 @@
   // ======================================================================
   const IMG_EXT = /\.(png|webp|gif|jpe?g)$/i;
   const BACK_SUFFIX = /[_-]sau$/i;
+  const POSE_SUFFIX = /[_-]dang(\d+)$/i;           // "<tên>_dang2.png" = bản vẽ riêng cho dáng 2
 
   // Khung xem trước của từng loại (toạ độ trên ảnh nhân vật 1047x1501)
   const PREVIEW_BOX = {
@@ -560,8 +614,8 @@
   });
 
   // Tính cách đặt ảnh lên nhân vật dựa vào cỡ ảnh
-  function autoPlace(catId, w, h) {
-    let t = TEMPLATES.find(t => t.w === w && t.h === h);
+  function autoPlace(catId, w, h, tpl) {
+    let t = tpl && tpl.w === w && tpl.h === h ? tpl : TEMPLATES.find(t => t.w === w && t.h === h);
     if (t?.same) return null;                       // đặt chồng thẳng
     if (!t) {                                       // cỡ lạ: co cho vừa
       const s = Math.min(IMG_W / w, IMG_H / h);
@@ -606,6 +660,29 @@
     return Object.keys(out).length ? out : (window.ITEM_FILES || {});
   }
 
+  for (const c of CATEGORIES) for (const it of c.items) if (it) it.cat = c.id;
+  // Dáng bên phải của assets/character_2.png (1072x1228) -> ảnh nhân vật
+  // (khớp với tools/make_pose2.py: dáng trái ở (138.98, -140.24), dáng phải lệch 504px, 2px)
+  const POSE2_TEMPLATE = (() => {
+    const s = CELL / 16.12;
+    return { w: 1072, h: 1228, s, ox: 138.98 - 504 * s, oy: -140.24 - 2 * s };
+  })();
+
+  // Ảnh riêng cho từng dáng: "<tên>_dang2.png" -> { poseImg: {1: src}, ownPlace: {1: place} }
+  // (số trong tên file tính từ 1, chỉ số dáng trong POSES tính từ 0)
+  async function posePlace(catId, dir, files, base) {
+    const poseImg = {}, ownPlace = {};
+    for (const f of files) {
+      const m = f.replace(IMG_EXT, '').match(POSE_SUFFIX);
+      if (!m || f.replace(IMG_EXT, '').replace(POSE_SUFFIX, '') !== base) continue;
+      const size = await loadSize(dir + f);
+      if (!size) continue;
+      poseImg[m[1] - 1] = dir + f;
+      ownPlace[m[1] - 1] = autoPlace(catId, size[0], size[1], POSE2_TEMPLATE);
+    }
+    return { poseImg, ownPlace };
+  }
+
   const BUILTIN = Object.fromEntries(CATEGORIES.map(c => [c.id, c.items.slice()]));
   let lastListing = '';
 
@@ -623,7 +700,7 @@
       // ảnh chỉ khai báo trong items.js (khi không có server) vẫn được dùng
       for (const f of Object.keys(extra)) if (!files.includes(f)) files.push(f);
 
-      const fronts = files.filter(f => !BACK_SUFFIX.test(f.replace(IMG_EXT, '')));
+      const fronts = files.filter(f => !BACK_SUFFIX.test(f.replace(IMG_EXT, '')) && !POSE_SUFFIX.test(f.replace(IMG_EXT, '')));
       const items = await Promise.all(fronts.map(async (file) => {
         const e = extra[file] || {};
         const base = file.replace(IMG_EXT, '');
@@ -639,6 +716,8 @@
           img: dir + file,
           backImg: backFile ? dir + backFile : null,
           place,
+          cat: cat.id,
+          ...await posePlace(cat.id, dir, files, base),
           box: e.box || PREVIEW_BOX[cat.id],
         };
       }));

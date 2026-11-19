@@ -25,6 +25,9 @@ Bấm đúp **`start.bat`** ở thư mục gốc. Trình duyệt sẽ mở `http
   Dấu `-` và `_` được đổi thành khoảng trắng.
 - File tên `<tên>_sau.png` là **lớp nằm sau lưng** nhân vật của `<tên>.png`.
   Ví dụ `Tóc dài.png` đi cùng `Tóc dài_sau.png`.
+- File tên `<tên>_dang2.png` là **bản vẽ riêng cho Dáng 2** (vẽ trên dáng bên phải của
+  `assets/character_2.png`). Không có file này thì quần/giày vẽ cho dáng 1 sẽ được tự dịch
+  ống chân cho gần khớp dáng 2.
 - Danh sách xếp theo tên file.
 
 ## Cỡ ảnh: game tự căn

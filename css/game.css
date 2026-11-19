@@ -303,3 +303,11 @@
   border: var(--px) solid var(--pink-3);
   pointer-events: none;
 }
+
+/* ===== Bảng chọn dáng ===== */
+.swatches.poses { grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); }
+.pose-thumb {
+  width: 100%; max-width: 80px; aspect-ratio: 690 / 1340;
+  display: block;
+}
+.pose-thumb svg { width: 100%; height: 100%; display: block; }
