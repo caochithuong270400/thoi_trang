@@ -232,7 +232,140 @@
       const it = item(id);
       if (it) front += layerSvg(it, 'front');
     }
-    doll.innerHTML = back + imgSvg('assets/character.png') + front;
+    doll.innerHTML = back + imgSvg(charSrc) + front;
+  }
+
+  // ======================================================================
+  //  MÀU DA / MÀU MẮT: tô lại ảnh nhân vật bằng canvas.
+  //  - Da: điểm ảnh sáng (da) + bóng tím nhạt, giữ độ sáng/tối gốc.
+  //  - Mắt: điểm đỏ/cam/vàng trong 2 vùng mắt -> xoay màu (hue).
+  //  Má hồng, viền, lông mày, đốm sáng trong mắt giữ nguyên.
+  // ======================================================================
+  const SKINS = [
+    { name: 'Mặc định', c: null, show: '#fdecef' },
+    { name: 'Trắng sứ', c: '#fff4ea' },
+    { name: 'Hồng đào', c: '#ffd9c7' },
+    { name: 'Bánh mật', c: '#f1c08f' },
+    { name: 'Ngăm', c: '#d69a6c' },
+    { name: 'Nâu', c: '#a8704a' },
+    { name: 'Nâu sẫm', c: '#6e4430' },
+    { name: 'Xanh tiên', c: '#c8f0dc' },
+    { name: 'Tím mộng', c: '#ded0ff' },
+  ];
+  const EYES = [
+    { name: 'Đỏ', rot: 0, show: '#f03030' },
+    { name: 'Xanh dương', rot: 215, show: '#3a7bf0' },
+    { name: 'Xanh lá', rot: 125, show: '#2fbf55' },
+    { name: 'Tím', rot: 275, show: '#9b4df0' },
+    { name: 'Hồng', rot: 320, show: '#f04fa8' },
+    { name: 'Hổ phách', rot: 30, spread: 0.4, show: '#f0a020' },
+    { name: 'Nâu', rot: 15, spread: 0.4, sat: 0.55, lig: 0.75, show: '#8a5030' },
+    { name: 'Đen', rot: 0, sat: 0.08, lig: 0.5, show: '#2a2228' },
+  ];
+  const BASE_SRC = 'assets/character.png';
+  const look = { skin: 0, eye: 0 };
+  try { Object.assign(look, JSON.parse(localStorage.getItem('thoitrang.look') || '{}')); } catch {}
+  if (!SKINS[look.skin]) look.skin = 0;
+  if (!EYES[look.eye]) look.eye = 0;
+  let charSrc = BASE_SRC;
+  let lookBase = null;          // dữ liệu ảnh gốc + danh sách điểm da/mắt
+  let lookError = false;        // không đọc được điểm ảnh (mở bằng file://)
+  const lookCache = {};
+
+  const rgb2hsl = (r, g, b) => {
+    r /= 255; g /= 255; b /= 255;
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
+    if (!d) return [0, 0, l];
+    const s = d / (1 - Math.abs(2 * l - 1));
+    const h = mx === r ? ((g - b) / d + 6) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    return [h * 60, s, l];
+  };
+  const hsl2rgb = (h, s, l) => {
+    const c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = l - c / 2;
+    const [r, g, b] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x]
+      : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+    return [(r + m) * 255, (g + m) * 255, (b + m) * 255];
+  };
+  const hex2rgb = (h) => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+
+  function loadLookBase() {
+    if (lookBase || lookError) return Promise.resolve(lookBase);
+    return new Promise((res) => {
+      const im = new Image();
+      im.onload = () => {
+        try {
+          const cv = document.createElement('canvas');
+          cv.width = IMG_W; cv.height = IMG_H;
+          const ctx = cv.getContext('2d');
+          ctx.drawImage(im, 0, 0);
+          const img = ctx.getImageData(0, 0, IMG_W, IMG_H);   // file:// sẽ lỗi ở đây
+          const d = img.data, skin = [], skinF = [], eye = [], eyeHSL = [];
+          const LB = 241.4;                                  // độ sáng màu da gốc (253,236,239)
+          for (let i = 0; i < d.length; i += 4) {
+            if (!d[i + 3]) continue;
+            const r = d[i], g = d[i + 1], b = d[i + 2];
+            const [h, s, l] = rgb2hsl(r, g, b);
+            const p = i >> 2, x = p % IMG_W, y = (p / IMG_W) | 0;
+            const inEye = y >= 545 && y <= 700 && ((x >= 285 && x <= 470) || (x >= 575 && x <= 765));
+            if (inEye && s > 0.45 && l > 0.08 && l < 0.9 && ((h >= 330 && l < 0.5) || h >= 350 || h < 65)) {
+              eye.push(i); eyeHSL.push(h, s, l); continue;
+            }
+            if (inEye && Math.min(r, g, b) > 245) continue;    // đốm sáng trong mắt
+            if (l > 0.82 || (l > 0.44 && h >= 270 && h <= 325)) {
+              skin.push(i); skinF.push((0.299 * r + 0.587 * g + 0.114 * b) / LB);
+            }
+          }
+          lookBase = { ctx, cv, img, orig: new Uint8ClampedArray(d), skin, skinF, eye, eyeHSL };
+        } catch { lookError = true; }
+        res(lookBase);
+      };
+      im.onerror = () => { lookError = true; res(null); };
+      // Mở thẳng file:// thì đọc ảnh từ assets/character.js (data URL) để không bị chặn
+      im.src = location.protocol === 'file:' && window.CHARACTER_DATA ? window.CHARACTER_DATA : BASE_SRC;
+    });
+  }
+
+  async function applyLook() {
+    const key = `${look.skin}|${look.eye}`;
+    if (key === '0|0') { charSrc = BASE_SRC; return; }
+    if (lookCache[key]) { charSrc = lookCache[key]; return; }
+    const B = await loadLookBase();
+    if (!B) { charSrc = BASE_SRC; return; }
+    const d = B.img.data;
+    d.set(B.orig);
+    const sk = SKINS[look.skin];
+    if (sk.c) {
+      const [tr, tg, tb] = hex2rgb(sk.c), top = 255 / 241.4 - 1;
+      B.skin.forEach((i, n) => {
+        const f = B.skinF[n];
+        if (f <= 1) { d[i] = tr * f; d[i + 1] = tg * f; d[i + 2] = tb * f; }
+        else {
+          const k = Math.min(1, (f - 1) / top);            // vùng bóng sáng -> pha trắng
+          d[i] = tr + (255 - tr) * k; d[i + 1] = tg + (255 - tg) * k; d[i + 2] = tb + (255 - tb) * k;
+        }
+      });
+    }
+    const ey = EYES[look.eye];
+    if (ey.rot || ey.sat || ey.lig) {
+      B.eye.forEach((i, n) => {
+        const h = B.eyeHSL[n * 3], s = B.eyeHSL[n * 3 + 1], l = B.eyeHSL[n * 3 + 2];
+        const hr = h > 180 ? h - 360 : h;          // đỏ=0, vàng≈52
+        const [r, g, b] = hsl2rgb((ey.rot + hr * (ey.spread ?? 1) + 720) % 360, s * (ey.sat ?? 1), l * (ey.lig ?? 1));
+        d[i] = r; d[i + 1] = g; d[i + 2] = b;
+      });
+    }
+    B.ctx.putImageData(B.img, 0, 0);
+    const blob = await new Promise(r => B.cv.toBlob(r, 'image/png'));
+    charSrc = lookCache[key] = URL.createObjectURL(blob);
+  }
+
+  async function setLook(part, i) {
+    look[part] = i;
+    try { localStorage.setItem('thoitrang.look', JSON.stringify(look)); } catch {}
+    renderWardrobe();
+    await applyLook();
+    renderDoll();
+    if (lookError) renderWardrobe();
   }
 
   function previewSvg(it) {
@@ -271,6 +404,13 @@
     <rect x="2" y="5" width="2" height="1"/><rect x="4" y="5" width="2" height="1"/>
     <rect x="1" y="6" width="2" height="1"/><rect x="5" y="6" width="2" height="1"/></svg>`;
 
+  // icon khuôn mặt (pixel 8x8) cho nút Da/Mắt
+  const ICON_LOOK = `<svg viewBox="0 0 8 8"><rect x="1" y="0" width="6" height="8" fill="${OUTLINE}"/>
+    <rect x="0" y="1" width="8" height="6" fill="${OUTLINE}"/>
+    <rect x="1" y="1" width="6" height="6" fill="#f1c08f"/>
+    <rect x="2" y="3" width="1" height="2" fill="#3a7bf0"/><rect x="5" y="3" width="1" height="2" fill="#3a7bf0"/>
+    <rect x="1" y="5" width="1" height="1" fill="#f48fb1"/><rect x="6" y="5" width="1" height="1" fill="#f48fb1"/></svg>`;
+
   // tim độ hiếm (pixel 7x6)
   const HEART = (on) => `<svg viewBox="0 0 7 6"><path fill="${on ? '#e9447f' : '#f6d3e2'}"
     d="M1 0h2v1h1v-1h2v1h1v2h-1v1h-1v1h-1v1h-1v-1h-1v-1h-1v-1h-1v-2h1z"/></svg>`;
@@ -284,7 +424,11 @@
         <button class="px-btn cat-btn" data-tab="${cat.id}" title="${cat.label}">
           <span class="ico">${previewSvg(cat.items.find(Boolean))}</span>
           <span class="lbl">${SHORT[cat.id] || cat.label}</span>
-        </button>`).join('');
+        </button>`).join('') + `
+        <button class="px-btn cat-btn" data-tab="look" title="Màu da & mắt">
+          <span class="ico">${ICON_LOOK}</span>
+          <span class="lbl">Da/Mắt</span>
+        </button>`;
 
     actions.innerHTML = `
         <button class="px-btn cat-btn" id="btn-random" title="Ngẫu nhiên">
@@ -314,19 +458,40 @@
     renderWardrobe(true);
   });
   wardrobe.addEventListener('click', (e) => {
+    const sw = e.target.closest('[data-look]');
+    if (sw) { setLook(sw.dataset.look, Number(sw.dataset.v)); return; }
     const card = e.target.closest('[data-i]');
     if (!card) return;
     state[activeCat] = Number(card.dataset.i);
     update();
   });
 
+  const swatches = (part, list) => `
+    <div class="swatches">${list.map((o, i) => `
+      <button class="swatch${look[part] === i ? ' selected' : ''}" data-look="${part}" data-v="${i}" title="${o.name}">
+        <span class="dot" style="background:${o.c || o.show}"></span>
+        <span class="card-name">${o.name}</span>
+      </button>`).join('')}
+    </div>`;
+
   function renderWardrobe(resetScroll) {
-    const cat = CATEGORIES.find(c => c.id === activeCat);
     catbar.querySelectorAll('[data-tab]').forEach(t =>
       t.classList.toggle('active', t.dataset.tab === activeCat));
+    const list = wardrobe.querySelector('.items');
+
+    if (activeCat === 'look') {
+      wardrobe.querySelector('.cat-title').textContent = 'Da & Mắt';
+      list.innerHTML = `
+        ${lookError ? '<p class="look-note">Cần mở game bằng start.bat để đổi màu.</p>' : ''}
+        <div class="look-sec">Màu da</div>${swatches('skin', SKINS)}
+        <div class="look-sec">Màu mắt</div>${swatches('eye', EYES)}`;
+      if (resetScroll) list.scrollTop = 0;
+      return;
+    }
+
+    const cat = CATEGORIES.find(c => c.id === activeCat);
     wardrobe.querySelector('.cat-title').textContent = cat.label;
 
-    const list = wardrobe.querySelector('.items');
     const sel = state[cat.id] || 0;
     list.innerHTML = cat.items.map((it, i) => `
       <button class="card${i === sel ? ' selected' : ''}${it ? '' : ' none-card'}" data-i="${i}" role="option" aria-selected="${i === sel}">
@@ -511,6 +676,7 @@
 
   (async () => {
     await loadUserItems();
+    await applyLook();
     restoreKeys(savedKeys);
     buildWardrobe();
     update();

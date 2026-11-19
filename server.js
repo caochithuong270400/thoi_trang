@@ -36,6 +36,20 @@ function writeList() {
   } catch (e) { console.error('Không ghi được list.js:', e.message); }
 }
 writeList();
+
+// Ghi assets/character.js (ảnh nhân vật dạng base64) để đổi màu da/mắt chạy được cả khi mở file://
+// (trình duyệt chặn đọc điểm ảnh của file PNG mở thẳng, nhưng không chặn data URL).
+const CHAR_PNG = path.join(ROOT, 'assets', 'character.png');
+const CHAR_JS = path.join(ROOT, 'assets', 'character.js');
+function writeCharacter() {
+  try {
+    const body = '// TỰ ĐỘNG TẠO bởi server.js từ assets/character.png — đừng sửa tay.\n' +
+      'window.CHARACTER_DATA = "data:image/png;base64,' + fs.readFileSync(CHAR_PNG).toString('base64') + '";\n';
+    if (!fs.existsSync(CHAR_JS) || fs.readFileSync(CHAR_JS, 'utf8') !== body) fs.writeFileSync(CHAR_JS, body);
+  } catch (e) { console.error('Không ghi được character.js:', e.message); }
+}
+writeCharacter();
+try { fs.watchFile(CHAR_PNG, { interval: 2000 }, writeCharacter); } catch {}
 let timer;
 try {
   fs.watch(ITEMS_DIR, { recursive: true }, () => { clearTimeout(timer); timer = setTimeout(writeList, 300); });
